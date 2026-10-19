@@ -69,3 +69,20 @@ sudo ./scripts/02_test_crash_recovery.sh
 chmod +x scripts/03_boot_analysis.sh
 ./scripts/03_boot_analysis.sh
 ```
+
+
+[ Client ]                                            [ Server ]
+    │                                                     │  LISTEN
+    │ ─── SYN ──────────────────────────────────────────> │  SYN_RECV
+    │ <── SYN-ACK ─────────────────────────────────────── │
+    │ ─── ACK ──────────────────────────────────────────> │  ESTABLISHED
+    │                                                     │
+    ▼                                                     ▼
+              [ Data Exchange: ESTABLISHED ]
+    │                                                     │
+    │ ─── FIN ──────────────────────────────────────────> │  CLOSE_WAIT
+    │ <── ACK ─────────────────────────────────────────── │
+    │ <── FIN ─────────────────────────────────────────── │  LAST_ACK
+    │ ─── ACK ──────────────────────────────────────────> │  CLOSED
+    ▼                                                     ▼
+TIME_WAIT (Client retains for 60s)
