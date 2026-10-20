@@ -23,3 +23,9 @@ Production-grade Linux system administration patterns, kernel mechanics, and inc
   - Self-healing supervision and automated crash recovery
   - Boot performance analysis (`blame`, `critical-chain`)
   - Structured binary logging via `journalctl`
+- **Phase 4: Low-Level Networking, Sockets & Packet Filtering**
+  - Modern network state inspection via `iproute2` (`ip a`, `ip r`, `ip neigh`)
+  - TCP socket lifecycles, states (`TIME_WAIT`, `CLOSE_WAIT`), and `ss` triage
+  - Netfilter packet filtering chains (`INPUT`, `OUTPUT`) and `DROP` vs `REJECT`
+  - DNS resolution flow through `systemd-resolved` and local stubs
+  - Kernel TCP stack and socket queue tuning via `sysctl`
