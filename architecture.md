@@ -1,46 +1,53 @@
-+====================================================================================================+
-|                                        USERSPACE RUNTIME                                           |
-+====================================================================================================+
-|                                                                                                    |
-|   [ systemd (PID 1) ] (Phase 3)                                                                    |
-|     ├── cgroups Control Slices (/sys/fs/cgroup/system.slice/)                                      |
-|     │     ├── MemoryMax = 150M  ─────────┐ (Triggers OOM if breached)                              |
-|     │     └── CPUQuota  = 50%   ─────────┼─────────────────────────┐                               |
-|     └── Namespace Sandboxing             │                         │                               |
-|           ├── PrivateTmp = true          │                         │                               |
-|           └── ProtectSystem = strict     │                         │                               |
-|                                          ▼                         ▼                               |
-|   [ Application Process (e.g., Python / Nginx) ]              [ Network Client / Curl ]            |
-|     ├── Memory: VSS -> PSS -> RSS (Phase 1)                        │                               |
-|     ├── Limits: LimitNOFILE (Max Open FDs)                         ▼                               |
-|     │                                                [ Socket API: socket(), bind(), connect() ]   |
-|     ├── File Descriptors (/proc/<PID>/fd/) (Phase 1)               │                               |
-|     │     ├── FD 0, 1, 2 (stdin, stdout -> journald)               │                               |
-|     │     ├── FD 3 (Log File Handle) ──────────┐                   │                               |
-|     │     └── FD 4 (TCP Socket Descriptor) ────┼────────┐          │                               |
-+=====│==========================================│========│==========│===============================+
-|     │           LINUX KERNEL SUBSYSTEMS        │        │          │                               |
-+=====│==========================================│========│==========│===============================+
-|     │                                          │        │          │                               |
-|  [ VFS & Storage Engine ] (Phase 2)            │        │          ▼                               |
-|     ├── Inode Table (Metadata: df -i) <────────┘        │  [ TCP/IP Network Stack ] (Phase 4)      |
-|     │     └── Link Count (NLINK = 0 vs >0)              │     ├── Local Stub (127.0.0.53:53)       |
-|     ├── Data Blocks (Storage Payload: df -h)            │     │     └── /etc/resolv.conf           |
-|     └── Logical Volume Manager (LVM)                    │     ├── Socket Queues & States           |
-|           └── LV -> VG -> PV -> SCSI (/dev/sda)         │     │     └── LISTEN, SYN_RECV,          |
-|                                                         │     │         ESTABLISHED, TIME_WAIT     |
-|                                                         │     │     └── Backlogs (somaxconn)       |
-|  [ Process & Memory Scheduler ] (Phase 1)               │     │                                    |
-|     ├── Run Queue: Runnable (R) (us/sy)                 │     ▼                                    |
-|     ├── Wait Queue: Blocked on I/O (D-State) (b/wa)     │  [ Netfilter Hook Chains ] (Phase 4)     |
-|     ├── OOM Subsystem: checks oom_score & terminates    │     ├── PREROUTING (NAT)                 |
-|     └── Swap Subsystem: Pages to disk (si/so thrashing) │     ├── INPUT / OUTPUT (DROP vs REJECT)  |
-|                                                         │     └── POSTROUTING (SNAT/Masquerade)    |
-|                                                         │                   │                      |
-+=========================================================│===================│======================+
-|                   PHYSICAL / HYPERVISOR HARDWARE (Azure Cloud)              │                      |
-+=============================================================================│======================+
-|     ├── Block Storage Controller (Managed Disks: SCSI Bus) <────────────────┘                      |
-|     ├── Physical RAM Chips                                                                         |
-|     ├── CPU Cores (vCPUs: us, sy, id, wa, st)                                                      |
-|     └── Network Interface Card (NIC / eth0 / Wire Server: 168.63.129.16) <────────────────────────┘
+# Linux Userspace to Kernel to Azure Hardware
+
+```mermaid
+flowchart TB
+  subgraph US["USERSPACE RUNTIME"]
+    SD["systemd PID 1<br/>(Phase 3)"]
+    CG["cgroups slices<br/>/sys/fs/cgroup/system.slice/<br/>MemoryMax=150M · CPUQuota=50%"]
+    NS["Namespace sandboxing<br/>PrivateTmp=true · ProtectSystem=strict"]
+    APP["Application process<br/>Python / Nginx<br/>VSS → PSS → RSS · LimitNOFILE<br/>(Phase 1)"]
+    FD["File descriptors /proc/PID/fd/<br/>0,1,2 stdin/stdout → journald<br/>3 log file · 4 TCP socket"]
+    CLI["Network client / curl"]
+    SOCK["Socket API<br/>socket() bind() connect()"]
+    SD --> CG
+    SD --> NS
+    CG -->|limits| APP
+    NS -->|sandbox| APP
+    APP --> FD
+    CLI --> SOCK
+  end
+
+  subgraph K["LINUX KERNEL SUBSYSTEMS"]
+    VFS["VFS & storage (Phase 2)<br/>Inode table: df -i · NLINK 0 vs nonzero<br/>Data blocks: df -h<br/>LVM: LV → VG → PV → /dev/sda"]
+    SCHED["Process & memory scheduler (Phase 1)<br/>Run queue R (us/sy)<br/>D-state blocked I/O (b/wa)<br/>OOM: oom_score → kill<br/>Swap thrashing (si/so)"]
+    NET["TCP/IP stack (Phase 4)<br/>Stub 127.0.0.53:53 · /etc/resolv.conf<br/>LISTEN · SYN_RECV · ESTABLISHED · TIME_WAIT<br/>Backlog: somaxconn"]
+    NF["Netfilter hooks (Phase 4)<br/>PREROUTING NAT<br/>INPUT/OUTPUT DROP vs REJECT<br/>POSTROUTING SNAT/Masquerade"]
+    NET --> NF
+  end
+
+  subgraph HW["HYPERVISOR / HARDWARE (Azure)"]
+    DISK["Managed disks (SCSI bus)"]
+    CPU["vCPUs: us sy id wa st"]
+    RAM["Physical RAM"]
+    NIC["NIC eth0<br/>Wire Server 168.63.129.16"]
+  end
+
+  FD -->|FD 3 → inode| VFS
+  FD -->|FD 4| NET
+  SOCK --> NET
+  CG -.->|MemoryMax breached → OOM| SCHED
+  VFS --> DISK
+  SCHED --> CPU
+  SCHED --> RAM
+  NF --> NIC
+```
+
+<details>
+<summary>ASCII version (plain-text fallback)</summary>
+
+```text
+<paste your original ASCII here>
+```
+
+</details>
