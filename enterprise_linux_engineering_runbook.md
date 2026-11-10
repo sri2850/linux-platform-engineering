@@ -484,4 +484,302 @@ A modular, command-by-command reference manual. No monolithic scripts; each comm
   ```
   *When to run:* Provisioning human operators or deployment accounts.
 
-* **Add
+* **Add an existing user to a secondary group:**
+  ```bash
+  sudo usermod -aG <GROUP> <USERNAME>
+  ```
+  *When to run:* Granting team permissions without replacing existing group memberships.
+
+* **Inspect user numeric UID, primary GID, and secondary groups:**
+  ```bash
+  id <USERNAME>
+  ```
+  *When to run:* Verifying group memberships and identity mappings.
+
+### Least-Privilege Sudo Delegation (`visudo`)
+* **Validate sudoers file syntax safely:**
+  ```bash
+  sudo visudo -c -f /etc/sudoers.d/<CONFIG_FILE>
+  ```
+  *When to run:* Before applying any sudo configuration to prevent administrative lockouts.
+
+* **Test command execution as a restricted user:**
+  ```bash
+  sudo -u <USERNAME> sudo <COMMAND>
+  ```
+  *When to run:* Testing least-privilege permissions without logging in as the user.
+
+### POSIX Access Control Lists (ACLs)
+* **View extended access control lists on a file or directory:**
+  ```bash
+  getfacl /path/to/target
+  ```
+  *When to run:* Checking for fine-grained permissions on files showing the `+` mode bit.
+
+* **Grant a named user specific read/execute permissions:**
+  ```bash
+  sudo setfacl -m u:<USERNAME>:rx /path/to/target
+  ```
+  *When to run:* Granting access to a specific account without changing file ownership.
+
+* **Grant a named group specific permissions:**
+  ```bash
+  sudo setfacl -m g:<GROUPNAME>:r /path/to/target
+  ```
+  *When to run:* Granting access to a team without altering primary group ownership.
+
+* **Configure default ACL inheritance on a directory:**
+  ```bash
+  sudo setfacl -d -m u:<USERNAME>:rx /path/to/directory
+  ```
+  *When to run:* Ensuring all future files created inside a directory inherit access rights.
+
+* **Override maximum permissions via ACL mask:**
+  ```bash
+  sudo setfacl -m m::r-- /path/to/target
+  ```
+  *When to run:* Setting an upper ceiling on all named user and group ACL entries.
+
+* **Strip all extended ACLs and restore standard mode bits:**
+  ```bash
+  sudo setfacl -b /path/to/target
+  ```
+  *When to run:* Removing extended ACLs to return to standard permissions.
+
+### Scheduled Automation (`systemd.timer` vs. `cron`)
+* **List all active systemd timers and countdowns:**
+  ```bash
+  systemctl list-timers --all
+  ```
+  *When to run:* Checking upcoming scheduled tasks, intervals, and last execution times.
+
+* **View execution logs for a timer-triggered service:**
+  ```bash
+  sudo journalctl -u <service_name>.service --no-pager
+  ```
+  *When to run:* Auditing scheduled task runs and debugging errors.
+
+### Time Synchronization (`chronyd`) & Drift Prevention
+* **Inspect system clock synchronization status:**
+  ```bash
+  timedatectl status
+  ```
+  *When to run:* Checking if NTP is active and the system clock is synchronized.
+
+* **Display detailed chrony tracking parameters and offset:**
+  ```bash
+  chronyc tracking
+  ```
+  *When to run:* Measuring clock offset, root delay, and stratum accuracy.
+
+* **View upstream time sources and stratum tiers:**
+  ```bash
+  chronyc sources -v
+  ```
+  *When to run:* Checking sync status (`*` = active source, `PHC0` = Azure Hyper-V clock).
+
+### Network Shared Storage (NFS)
+* **Mount an NFS share with fail-fast timeouts:**
+  ```bash
+  sudo mount -t nfs -o soft,timeo=30,retrans=2 <SERVER_IP>:/<EXPORT_PATH> /mnt/nfs
+  ```
+  *When to run:* Preventing processes from hanging in uninterruptible `D` state if storage drops.
+
+* **Unmount an NFS filesystem cleanly:**
+  ```bash
+  sudo umount /mnt/nfs
+  ```
+  *When to run:* Detaching network shares before maintenance.
+
+---
+
+## Phase 6: Linux Namespaces & Manual Container Assembly
+
+### Namespace Inspection
+* **List active namespace kernel inode pointers for the current shell:**
+  ```bash
+  ls -l /proc/$$/ns/
+  ```
+  *When to run:* Checking which namespace pointers (`ipc`, `net`, `mnt`, `pid`, `uts`, `user`) a process holds.
+
+### Namespace Isolation (`unshare`)
+* **Spawn a shell in isolated UTS (hostname) and Network namespaces:**
+  ```bash
+  sudo unshare --uts --net /bin/bash
+  ```
+  *When to run:* Testing isolated network stacks or setting private hostnames without affecting the host.
+
+* **Spawn an isolated container with PID, Mount, UTS, and Network namespaces:**
+  ```bash
+  sudo unshare --pid --mount --uts --net --fork chroot /opt/mini-container /bin/bash
+  ```
+  *When to run:* Running a process inside a manual container rootfs where it runs as PID 1.
+
+* **Display PID inside the isolated namespace:**
+  ```bash
+  echo $$
+  ```
+  *When to run:* Inside an unshared shell to verify it runs as PID 1.
+
+---
+
+## Phase 7: OS Security, Hardening, Kernel Interfaces & Azure Linux
+
+### Mandatory Access Control (AppArmor)
+* **Check AppArmor status (enforce vs. complain mode):**
+  ```bash
+  sudo aa-status
+  ```
+  *When to run:* Auditing loaded security profiles and protected processes.
+
+* **Inspect AppArmor kernel denials in system logs:**
+  ```bash
+  sudo dmesg -T | grep -i -E "apparmor|denied"
+  ```
+  *When to run:* Troubleshooting `Permission denied` errors on processes running as root.
+
+### Linux Capabilities (`setcap` / `getcap`)
+* **Inspect capabilities configured on a binary:**
+  ```bash
+  getcap /path/to/binary
+  ```
+  *When to run:* Checking if a binary holds elevated privileges without `setuid`.
+
+* **Grant low-port binding rights without giving full root access:**
+  ```bash
+  sudo setcap 'cap_net_bind_service=+ep' /path/to/binary
+  ```
+  *When to run:* Allowing non-root services to bind to port 80 or 443.
+
+* **Remove all extended capabilities from a binary:**
+  ```bash
+  sudo setcap -r /path/to/binary
+  ```
+  *When to run:* Revoking capability grants from a binary.
+
+### SSH Hardening & PAM
+* **Test `sshd` configuration syntax without restarting:**
+  ```bash
+  sudo sshd -t
+  ```
+  *When to run:* Always run before reloading `sshd` to avoid lockouts.
+
+* **View effective runtime `sshd` configuration:**
+  ```bash
+  sudo sshd -T | grep -E -i "passwordauthentication|permitrootlogin|maxauthtries"
+  ```
+  *When to run:* Verifying active authentication settings.
+
+* **Reload `sshd` safely without dropping active connections:**
+  ```bash
+  sudo systemctl reload sshd
+  ```
+  *When to run:* Applying configuration changes with zero downtime.
+
+* **Monitor SSH authentication logs:**
+  ```bash
+  sudo journalctl -u ssh -b --no-pager | grep -E "Accepted|Failed|Invalid" | tail -n 20
+  ```
+  *When to run:* Reviewing login attempts and brute-force scans.
+
+### Kernel Event Auditing (`auditd`) & Limits
+* **Set an audit watch on a critical file:**
+  ```bash
+  sudo auditctl -w /etc/ssh/sshd_config -p wa -k sshd_config_changes
+  ```
+  *When to run:* Tracking write and attribute changes on sensitive files.
+
+* **List active kernel audit rules:**
+  ```bash
+  sudo auditctl -l
+  ```
+  *When to run:* Verifying which file paths are being audited.
+
+* **Search audit logs for events by search key:**
+  ```bash
+  sudo ausearch -k sshd_config_changes --format text
+  ```
+  *When to run:* Identifying the user (`auid`), binary (`comm`), and timestamp of file modifications.
+
+* **Display current shell resource limits:**
+  ```bash
+  ulimit -a
+  ```
+  *When to run:* Checking ceilings for file descriptors (`-n`) and user processes (`-u`).
+
+* **Remove an audit watch rule:**
+  ```bash
+  sudo auditctl -W /etc/ssh/sshd_config -p wa -k sshd_config_changes
+  ```
+  *When to run:* Cleaning up audit rules.
+
+### Cloud Platform Internals (Azure Linux)
+* **Query Instance Metadata Service (IMDS) for VM metadata:**
+  ```bash
+  curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance?api-version=2021-02-01" | jq .
+  ```
+  *When to run:* Retrieving private IPs, subscriptions, or region data from within the VM.
+
+* **Test connectivity to the Azure Wire Server:**
+  ```bash
+  nc -z -v -w 2 168.63.129.16 80
+  ```
+  *When to run:* Verifying connectivity to the Azure fabric for DHCP and health probes.
+
+* **Check cloud-init execution status and timeline:**
+  ```bash
+  cloud-init status --long
+  cloud-init analyze show
+  ```
+  *When to run:* Debugging early boot provisioning and user-data execution.
+
+* **Inspect Azure Linux Guest Agent operational logs:**
+  ```bash
+  sudo tail -n 25 /var/log/waagent.log
+  ```
+  *When to run:* Troubleshooting VM extensions or Azure Portal status reporting.
+
+---
+
+## The Universal 4-Step Incident Triage Progression
+
+When an application fails to communicate or serve requests, diagnose in this order:
+
+### Step 1: DNS Layer (Layer 7 Resolution)
+* Check name resolution:
+  ```bash
+  resolvectl query <HOSTNAME>
+  dig @127.0.0.53 <HOSTNAME> +short
+  ```
+* Verify if the returned IP is an external public address or an internal private IP.
+
+### Step 2: Routing Layer (Layer 3 Path Determination)
+* Check the kernel routing table:
+  ```bash
+  ip route show
+  ```
+* Verify that a route exists for the destination CIDR (Longest Prefix Match) and confirm next-hop forwarding.
+
+### Step 3: Firewall & Packet Filtering (Layer 4 Access)
+* Inspect firewall byte and packet drop counters:
+  ```bash
+  sudo iptables -L INPUT -n -v --line-numbers
+  sudo iptables -L OUTPUT -n -v --line-numbers
+  ```
+* Check for increasing packet counters on `DROP` or `REJECT` rules.
+
+### Step 4: Socket & Application State (Layer 7 Host State)
+* Check listening sockets and interface binding:
+  ```bash
+  ss -tlpn | grep :<PORT>
+  ```
+* Check process limits and open descriptors:
+  ```bash
+  cat /proc/<PID>/limits | grep "open files"
+  ls -1 /proc/<PID>/fd | wc -l
+  ```
+* Check service status and application logs:
+  ```bash
+  systemctl status <SERVICE_NAME>
+  sudo journalctl -u <SERVICE_NAME> -b --no-pager -n 50
+  ```
